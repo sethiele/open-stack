@@ -1,0 +1,92 @@
+heat_template_version: 2014-10-16
+
+description: >
+    Test Template vor Open Stack
+parameters:
+  key_name:
+    type: string
+  public_network_id:
+    type: string
+    default: caf8de33-1059-4473-a2c1-2a62d12294fa 
+  image:
+    type: string
+    default: Ubuntu 16.04 sys11-cloudimg amd64 
+  flavor:
+    type: string
+    default: m1.small
+
+resources:
+  cloud-init-config:
+   # cloud init resource
+   type: OS::Heat::CloudConfig
+   properties:
+     cloud_config:
+       users:
+           - name: sthiele
+             sudo: ALL=(ALL) NOPASSWD:ALL
+             shell: /bin/bash
+
+  server_instance:
+    type: OS::Nova::Server
+    properties:
+      key_name: { get_param: key_name }
+      user_data_format: RAW
+      image: { get_param: image }
+      flavor: { get_param: flavor }
+      networks:
+        - port: { get_resource: server_port }
+
+  server_port:
+    type: OS::Neutron::Port
+    properties:
+      network_id: { get_resource: network}
+      security_groups: [{ get_resource: server_security_group }]
+
+  server_floating_ip:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_network: { get_param: public_network_id }
+      port_id: { get_resource: server_port }
+
+  network:
+    type: OS::Neutron::Net
+    properties:
+      name: server-net
+
+  subnet:
+    type: OS::Neutron::Subnet
+    depends_on: router
+    properties:
+      name: server_subnet
+      dns_nameservers:
+        - 37.123.105.117
+      network_id: {get_resource: network}
+      ip_version: 4
+      cidr: 10.0.0.0/24
+      allocation_pools:
+      - {start: 10.0.0.10, end: 10.0.0.250}
+
+  router:
+    type: OS::Neutron::Router
+    properties:
+      external_gateway_info: {"network": { get_param: public_network_id }}
+      name: server_natpoint
+
+  router_subnet_bridge:
+    type: OS::Neutron::RouterInterface
+    depends_on:  subnet
+    properties:
+      router_id: { get_resource: router }
+      subnet: { get_resource: subnet }
+
+  server_security_group:
+    type: OS::Neutron::SecurityGroup
+    properties:
+      description: Open SSH, Ping, http(s) traffic.
+      name: public-server
+      rules: [
+        {remote_ip_prefix: 0.0.0.0/0, protocol: tcp, port_range_min: 22, port_range_max: 22},
+        {remote_ip_prefix: 0.0.0.0/0, protocol: tcp, port_range_min: 80, port_range_max: 80},
+        {remote_ip_prefix: 0.0.0.0/0, protocol: tcp, port_range_min: 443, port_range_max: 443},
+        {remote_ip_prefix: 0.0.0.0/0,protocol: icmp}
+      ]
