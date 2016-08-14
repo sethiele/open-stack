@@ -1,5 +1,7 @@
 heat_template_version: 2014-10-16
 
+# run openstack stack create -t hot-template.yml --parameter key_name=%NAME firststack
+
 description: >
     Test Template vor Open Stack
 parameters:
@@ -16,19 +18,10 @@ parameters:
     default: m1.small
 
 resources:
-  cloud-init-config:
-   # cloud init resource
-   type: OS::Heat::CloudConfig
-   properties:
-     cloud_config:
-       users:
-           - name: sthiele
-             sudo: ALL=(ALL) NOPASSWD:ALL
-             shell: /bin/bash
-
-  server_instance:
+  lb:
     type: OS::Nova::Server
     properties:
+      name: lb
       key_name: { get_param: key_name }
       user_data_format: RAW
       image: { get_param: image }
